@@ -238,15 +238,10 @@ async function extractPdfMetadata(pdfBuffer) {
   }
 }
 
-// Helper function to save PDF to file for testing
-async function savePdfToFile(pdfBuffer, url) {
+// Helper function to generate PDF filename from metadata
+// Note: File saving is skipped in production (Railway) - filename is returned for Google Apps Script
+async function generatePdfFilename(pdfBuffer, url) {
   try {
-    // Create downloads directory if it doesn't exist
-    const downloadsDir = path.join(__dirname, 'downloads');
-    if (!fs.existsSync(downloadsDir)) {
-      fs.mkdirSync(downloadsDir, { recursive: true });
-    }
-
     // Extract metadata from PDF
     const { rut, fechaEmision } = await extractPdfMetadata(pdfBuffer);
     
@@ -265,15 +260,29 @@ async function savePdfToFile(pdfBuffer, url) {
       if (!fechaEmision) console.log('Warning: Could not extract Fecha de Emisión from PDF');
     }
     
-    const filepath = path.join(downloadsDir, filename);
-
-    // Save the PDF
-    fs.writeFileSync(filepath, pdfBuffer);
-    console.log(`PDF saved to: ${filepath}`);
-    return filepath;
+    // Optionally save file locally for testing (only if SAVE_PDF_FILES env var is set)
+    if (process.env.SAVE_PDF_FILES === 'true') {
+      try {
+        const downloadsDir = path.join(__dirname, 'downloads');
+        if (!fs.existsSync(downloadsDir)) {
+          fs.mkdirSync(downloadsDir, { recursive: true });
+        }
+        const filepath = path.join(downloadsDir, filename);
+        fs.writeFileSync(filepath, pdfBuffer);
+        console.log(`PDF saved to: ${filepath}`);
+      } catch (saveError) {
+        console.log('Note: Could not save PDF file locally (this is normal in production)');
+      }
+    }
+    
+    console.log(`Generated filename: ${filename}`);
+    return filename;
   } catch (error) {
-    console.error('Error saving PDF to file:', error.message);
-    return null;
+    console.error('Error generating PDF filename:', error.message);
+    // Return a fallback filename
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const urlHash = Buffer.from(url).toString('base64').substring(0, 10).replace(/[^a-zA-Z0-9]/g, '');
+    return `pdf-${timestamp}-${urlHash}.pdf`;
   }
 }
 
@@ -633,8 +642,8 @@ app.get('/download-pdf', async (req, res) => {
     if (pdfBuffer && pdfBuffer.length > 0) {
       const base64Pdf = pdfBuffer.toString('base64');
       
-      // Save PDF to file for testing
-      const savedFilePath = await savePdfToFile(pdfBuffer, url);
+      // Generate filename for Google Apps Script
+      const filename = await generatePdfFilename(pdfBuffer, url);
       
       if (page) {
         await page.close().catch(err => console.error('Error closing page:', err));
@@ -644,7 +653,7 @@ app.get('/download-pdf', async (req, res) => {
         success: true,
         pdf: base64Pdf,
         contentType: 'application/pdf',
-        savedFile: savedFilePath ? path.basename(savedFilePath) : null
+        filename: filename
       });
     }
 
@@ -663,8 +672,8 @@ app.get('/download-pdf', async (req, res) => {
             if (header === '%PDF') {
               const base64Pdf = buffer.toString('base64');
               
-              // Save PDF to file for testing
-              const savedFilePath = await savePdfToFile(buffer, url);
+              // Generate filename for Google Apps Script
+              const filename = await generatePdfFilename(buffer, url);
               
               if (page) {
                 await page.close().catch(err => console.error('Error closing page:', err));
@@ -674,7 +683,7 @@ app.get('/download-pdf', async (req, res) => {
                 success: true,
                 pdf: base64Pdf,
                 contentType: 'application/pdf',
-                savedFile: savedFilePath ? path.basename(savedFilePath) : null
+                filename: filename
               });
             } else {
               console.log('Response claims to be PDF but header is:', header);
@@ -796,8 +805,8 @@ app.get('/download-pdf', async (req, res) => {
             if (header === '%PDF') {
               const base64Pdf = buffer.toString('base64');
               
-              // Save PDF to file for testing
-              const savedFilePath = await savePdfToFile(buffer, url);
+              // Generate filename for Google Apps Script
+              const filename = await generatePdfFilename(buffer, url);
               
               if (page) {
                 await page.close().catch(err => console.error('Error closing page:', err));
@@ -807,7 +816,7 @@ app.get('/download-pdf', async (req, res) => {
                 success: true,
                 pdf: base64Pdf,
                 contentType: 'application/pdf',
-                savedFile: savedFilePath ? path.basename(savedFilePath) : null
+                filename: filename
               });
             } else {
               console.log(`Content-type says PDF but header doesn't match: ${header}`);
@@ -855,7 +864,7 @@ app.get('/download-pdf', async (req, res) => {
               const header = buffer.slice(0, 4).toString();
               if (header === '%PDF') {
                 const base64Pdf = buffer.toString('base64');
-                const savedFilePath = await savePdfToFile(buffer, url);
+                const filename = await generatePdfFilename(buffer, url);
                 
                 await newPage.close().catch(() => {});
                 if (page) {
@@ -866,7 +875,7 @@ app.get('/download-pdf', async (req, res) => {
                   success: true,
                   pdf: base64Pdf,
                   contentType: 'application/pdf',
-                  savedFile: savedFilePath ? path.basename(savedFilePath) : null
+                  filename: filename
                 });
               }
             }
