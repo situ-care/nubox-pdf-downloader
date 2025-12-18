@@ -1,6 +1,6 @@
 # Nubox PDF Downloader
 
-Express server that downloads PDF files from ASP URLs using Puppeteer and returns them as base64 encoded strings.
+Express server that downloads PDF files from Nubox ASP URLs using Puppeteer and returns them as base64 encoded strings.
 
 ## Features
 
@@ -42,7 +42,8 @@ On success, returns a JSON object with the base64 encoded PDF:
 {
   "success": true,
   "pdf": "base64-encoded-pdf-string",
-  "contentType": "application/pdf"
+  "contentType": "application/pdf",
+  "filename": filename
 }
 ```
 
@@ -70,4 +71,5 @@ This project is configured for Railway deployment. The server will automatically
 - express: Web framework
 - puppeteer: Browser automation for handling redirects
 - cors: Cross-origin resource sharing
+
 
